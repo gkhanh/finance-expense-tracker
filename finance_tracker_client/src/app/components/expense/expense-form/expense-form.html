@@ -1,0 +1,50 @@
+<div class="dashboard-wrapper">
+    <app-sidebar class="sidebar-container"></app-sidebar>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="welcome-text">
+                <h1>{{ isEditMode ? 'Edit Expense' : 'Add Expense' }}</h1>
+                <p>Record your transaction details.</p>
+            </div>
+            <button class="btn-secondary" (click)="goBack()">Cancel</button>
+        </header>
+
+        <div class="card form-card">
+            <form (ngSubmit)="onSubmit()">
+                <div class="input-group">
+                    <label>Description</label>
+                    <input type="text" [(ngModel)]="expense.description" name="description" required placeholder="e.g. Weekly Groceries">
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Amount ($)</label>
+                        <input type="number" [(ngModel)]="expense.amount" name="amount" required min="0.01">
+                    </div>
+                    <div class="input-group">
+                        <label>Date</label>
+                        <input type="date" [(ngModel)]="expense.date" name="date" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Category</label>
+                    <select [(ngModel)]="expense.category" name="category" required>
+                        <option value="" disabled selected>Select a Category</option>
+                        <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" [disabled]="loading">
+                        {{ loading ? 'Saving...' : 'Save Expense' }}
+                    </button>
+                </div>
+                
+                <div *ngIf="error" class="error-message">{{ error }}</div>
+            </form>
+        </div>
+    </main>
+</div>
+

@@ -1,0 +1,44 @@
+<div class="dashboard-wrapper">
+    <app-sidebar class="sidebar-container"></app-sidebar>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="welcome-text">
+                <h1>Revenues</h1>
+                <p>Track your income sources.</p>
+            </div>
+            <button class="btn-primary" (click)="goToAdd()">+ Add Revenue</button>
+        </header>
+
+        <div *ngIf="loading" class="loading">Loading Revenues...</div>
+        <div *ngIf="error" class="error-banner">{{ error }}</div>
+
+        <div class="card table-section" *ngIf="!loading">
+            <table class="pro-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Source</th>
+                        <th class="text-right">Amount</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let revenue of revenues">
+                        <td>{{ revenue.date | date:'mediumDate' }}</td>
+                        <td>{{ revenue.source }}</td>
+                        <td class="text-right">{{ revenue.amount | currency:'USD' }}</td>
+                        <td class="text-right action-cell">
+                            <button (click)="editRevenue(revenue.id!)" class="btn-icon edit">✎</button>
+                            <button (click)="deleteRevenue(revenue.id!)" class="btn-icon delete">🗑</button>
+                        </td>
+                    </tr>
+                    <tr *ngIf="revenues.length === 0">
+                        <td colspan="4" class="empty-state">No revenue records found.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+

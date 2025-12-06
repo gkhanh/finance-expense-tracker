@@ -1,0 +1,42 @@
+<div class="dashboard-wrapper">
+    <app-sidebar class="sidebar-container"></app-sidebar>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="welcome-text">
+                <h1>{{ isEditMode ? 'Edit Revenue' : 'Add Revenue' }}</h1>
+                <p>Record your income details.</p>
+            </div>
+            <button class="btn-secondary" (click)="goBack()">Cancel</button>
+        </header>
+
+        <div class="card form-card">
+            <form (ngSubmit)="onSubmit()">
+                <div class="input-group">
+                    <label>Source</label>
+                    <input type="text" [(ngModel)]="revenue.source" name="source" required placeholder="e.g. Salary, Freelance">
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Amount ($)</label>
+                        <input type="number" [(ngModel)]="revenue.amount" name="amount" required min="0.01">
+                    </div>
+                    <div class="input-group">
+                        <label>Date</label>
+                        <input type="date" [(ngModel)]="revenue.date" name="date" required>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary" [disabled]="loading">
+                        {{ loading ? 'Saving...' : 'Save Revenue' }}
+                    </button>
+                </div>
+                
+                <div *ngIf="error" class="error-message">{{ error }}</div>
+            </form>
+        </div>
+    </main>
+</div>
+

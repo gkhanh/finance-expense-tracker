@@ -1,0 +1,27 @@
+spring.application.name=finance_tracker
+# MongoDB Configuration
+spring.data.mongodb.host=${MONGODB_HOST:localhost}
+spring.data.mongodb.port=27017
+spring.data.mongodb.database=finance_tracker_db
+
+# JWT Configuration
+app.jwtSecret=YOUR_JWT_SECRET_HERE
+app.jwtExpirationMs=86400000
+
+# Google OAuth
+spring.security.oauth2.client.registration.google.client-id=YOUR_GOOGLE_CLIENT_ID
+spring.security.oauth2.client.registration.google.client-secret=YOUR_GOOGLE_CLIENT_SECRET
+
+# ==========================================
+# MAIL CONFIGURATION (GMAIL SMTP)
+# ==========================================
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+# Replace below with your actual Gmail address
+spring.mail.username=YOUR_GMAIL_ADDRESS
+# Replace below with your 16-character App Password (no spaces)
+spring.mail.password=YOUR_APP_PASSWORD
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.debug=true
+

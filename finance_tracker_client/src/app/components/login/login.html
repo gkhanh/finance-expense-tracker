@@ -1,0 +1,57 @@
+<div class="login-wrapper">
+    <div class="login-container">
+        <!-- Left Side: Branding -->
+        <div class="brand-section">
+            <h1>Finance Tracker</h1>
+            <p>Track expenses, revenue, and grow your wealth.</p>
+        </div>
+
+        <!-- Right Side: Glassmorphism Panel -->
+        <div class="glass-panel">
+            <form (ngSubmit)="onLogin()">
+                <div class="input-group">
+                    <input 
+                        id="username" 
+                        type="text" 
+                        [(ngModel)]="username" 
+                        name="username" 
+                        required 
+                        placeholder="Username" 
+                    />
+                </div>
+                <div class="input-group">
+                    <input 
+                        id="password" 
+                        type="password" 
+                        [(ngModel)]="password" 
+                        name="password" 
+                        required 
+                        placeholder="Password" 
+                    />
+                </div>
+                
+                <button type="submit" class="btn-login" [disabled]="loading">
+                    {{ loading ? 'Logging In...' : 'Log In' }}
+                </button>
+
+                <div *ngIf="errorMessage" class="error-message">
+                    {{ errorMessage }}
+                </div>
+
+                <div class="divider"><span>OR</span></div>
+
+                <!-- Social Login Buttons -->
+                <div class="social-actions">
+                    <div class="google-btn-wrapper">
+                        <asl-google-signin-button type="standard" size="large"></asl-google-signin-button>
+                    </div>
+                </div>
+
+                <div class="footer-actions">
+                    <a href="javascript:void(0)" (click)="forgotPassword()">Forgot Password?</a>
+                    <button type="button" class="btn-register" (click)="goToRegister()">Create New Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

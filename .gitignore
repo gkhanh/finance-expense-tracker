@@ -1,0 +1,16 @@
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Docker
+docker-compose.override.yml
+

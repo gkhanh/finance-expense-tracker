@@ -1,0 +1,198 @@
+<div class="dashboard-wrapper">
+    <app-sidebar class="sidebar-container"></app-sidebar>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="welcome-text">
+                <h1>Hello, {{ currentUser }}</h1>
+                <p>Here is your financial performance overview.</p>
+            </div>
+            <div class="user-profile">
+                <div class="avatar">{{ currentUser.charAt(0).toUpperCase() }}</div>
+            </div>
+        </header>
+
+        <div *ngIf="loading" class="loading">Loading Dashboard...</div>
+        <div *ngIf="error" class="error-banner">{{ error }}</div>
+
+        <div class="dashboard-grid" *ngIf="!loading">
+            <!-- KPI Card 1: Net Balance (Largest) -->
+            <div class="card kpi-card balance-large">
+                <h3>Net Balance</h3>
+                <div class="value-large">{{ summary?.netBalance | currency:'USD':'symbol':'1.2-2' }}</div>
+                <div class="trend">
+                   <span>Total Net Worth</span>
+                </div>
+            </div>
+
+            <!-- KPI Card 2: Monthly Income -->
+            <div class="card kpi-card income">
+                <h3>Monthly Income ({{ summary?.monthName || 'Current' }})</h3>
+                <div class="value">{{ summary?.monthlyIncome | currency:'USD':'symbol':'1.2-2' }}</div>
+                <div class="trend positive">
+                    <span *ngIf="summary?.incomeTrend !== 0 && summary?.incomeTrend !== undefined">
+                        {{ getTrendIcon(summary?.incomeTrend) }} {{ getAbsValue(summary?.incomeTrend) | number:'1.0-1' }}% vs last month
+                    </span>
+                    <span *ngIf="!summary?.incomeTrend || summary?.incomeTrend === 0">No change vs last month</span>
+                </div>
+            </div>
+
+            <!-- KPI Card 3: Monthly Expenses -->
+            <div class="card kpi-card expense">
+                <h3>Monthly Expenses ({{ summary?.monthName || 'Current' }})</h3>
+                <div class="value">{{ summary?.monthlyExpense | currency:'USD':'symbol':'1.2-2' }}</div>
+                <div class="trend" [class.positive]="summary?.expenseTrend! < 0" [class.negative]="summary?.expenseTrend! > 0">
+                    <span *ngIf="summary?.expenseTrend !== 0 && summary?.expenseTrend !== undefined">
+                        {{ getTrendIcon(summary?.expenseTrend) }} {{ getAbsValue(summary?.expenseTrend) | number:'1.0-1' }}% vs last month
+                    </span>
+                    <span *ngIf="!summary?.expenseTrend || summary?.expenseTrend === 0">No change vs last month</span>
+                </div>
+            </div>
+
+            <!-- Trend Chart Section -->
+            <div class="card trend-section">
+                <h3>Cash Flow Growth</h3>
+                <div class="trend-chart-container">
+                    <!-- Y-Axis Labels (Left Side) -->
+                    <div class="chart-y-axis">
+                        <span>{{ getChartRange() }}%</span>
+                        <span>0%</span>
+                        <span>-{{ getChartRange() }}%</span>
+                    </div>
+
+                    <div class="chart-content">
+                        <!-- SVG Lines -->
+                        <svg viewBox="0 0 100 100" class="line-chart" preserveAspectRatio="none">
+                            <!-- Grid Lines -->
+                            <line x1="0" y1="0" x2="100" y2="0" stroke="rgba(255,255,255,0.05)" stroke-width="0.5" />
+                            <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="4" />
+                            <line x1="0" y1="100" x2="100" y2="100" stroke="rgba(255,255,255,0.05)" stroke-width="0.5" />
+
+                            <!-- Income Line -->
+                            <path [attr.d]="getLinePath('income')" fill="none" stroke="#34d399" stroke-width="2" vector-effect="non-scaling-stroke" />
+                            
+                            <!-- Expense Line -->
+                            <path [attr.d]="getLinePath('expense')" fill="none" stroke="#f87171" stroke-width="2" vector-effect="non-scaling-stroke" />
+
+                            <!-- Hit Areas for Hover (Invisible Columns) -->
+                            <g *ngFor="let point of trendData; index as i" 
+                               (mouseenter)="onTrendPointHover(point, i, $event)" 
+                               (mouseleave)="onTrendPointLeave()"
+                               style="cursor: pointer;">
+                                <rect [attr.x]="getPointX(i) - 2" y="0" width="4" height="100" fill="transparent" />
+                            </g>
+                        </svg>
+                        
+                        <!-- HTML Dots Overlay (Perfect Circles) -->
+                        <div class="chart-dots-overlay">
+                            <ng-container *ngFor="let point of trendData; index as i">
+                                <div class="chart-dot income" 
+                                     [style.left.%]="getPointX(i)" 
+                                     [style.top.%]="getPointY(point.income)">
+                                </div>
+                                <div class="chart-dot expense" 
+                                     [style.left.%]="getPointX(i)" 
+                                     [style.top.%]="getPointY(point.expense)">
+                                </div>
+                            </ng-container>
+                        </div>
+
+                        <!-- Tooltip -->
+                        <div class="chart-tooltip" *ngIf="hoveredTrendPoint" 
+                             [style.left.%]="hoveredTrendPoint.x" 
+                             [style.top.px]="10">
+                            <div class="tooltip-title">{{ hoveredTrendPoint.month }}</div>
+                            <div class="tooltip-row income">
+                                <span class="dot"></span> Income: {{ hoveredTrendPoint.income | number:'1.0-1' }}%
+                            </div>
+                            <div class="tooltip-row expense">
+                                <span class="dot"></span> Expense: {{ hoveredTrendPoint.expense | number:'1.0-1' }}%
+                            </div>
+                        </div>
+
+                        <!-- X-Axis Labels -->
+                        <div class="chart-labels">
+                            <span *ngFor="let point of trendData">{{ point.month }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="chart-legend-top">
+                        <span class="legend-item"><span class="dot income"></span> Income Growth</span>
+                        <span class="legend-item"><span class="dot expense"></span> Expense Growth</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Existing Donut Chart -->
+            <div class="card chart-section">
+                <div class="card-header">
+                    <h3>Expense Distribution</h3>
+                </div>
+                <div class="chart-body">
+                    <div class="donut-chart-container" *ngIf="pieChartData.length > 0; else noChartData">
+                        <div class="chart-wrapper">
+                            <svg viewBox="0 0 36 36" class="donut-chart">
+                                <path class="donut-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <ng-container *ngFor="let item of pieChartData; index as i">
+                                    <circle class="donut-segment" 
+                                            (mouseenter)="onPieHover(item, i)"
+                                            (mouseleave)="onPieLeave()"
+                                            cx="18" cy="18" r="15.9155" 
+                                            fill="none" 
+                                            [attr.stroke]="getChartColor(i)" 
+                                            stroke-width="3"
+                                            [attr.stroke-dasharray]="item.percentage + ', ' + (100 - item.percentage)"
+                                            [attr.stroke-dashoffset]="getDashOffset(i)">
+                                    </circle>
+                                </ng-container>
+                                <text x="18" y="20.35" class="donut-text">
+                                    Total
+                                </text>
+                            </svg>
+                            <div class="pie-tooltip" *ngIf="hoveredPieSegment"
+                                 [style.left.%]="pieTooltipPosition.x"
+                                 [style.top.%]="pieTooltipPosition.y">
+                                <strong>{{ hoveredPieSegment.name }}</strong>
+                                <div>{{ hoveredPieSegment.value | currency:'USD' }}</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-legend">
+                            <div *ngFor="let item of pieChartData; index as i" class="legend-item" 
+                                 [class.highlight]="hoveredPieSegment === item">
+                                <span class="legend-color" [style.background-color]="getChartColor(i)"></span>
+                                <span class="legend-label">{{ item.name }}</span>
+                                <span class="legend-value">{{ item.percentage | number:'1.0-1' }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <ng-template #noChartData>
+                        <div class="empty-chart-state">
+                            <p>No expense data available.</p>
+                        </div>
+                    </ng-template>
+                </div>
+            </div>
+
+            <!-- Detailed Table -->
+            <div class="card table-section">
+                <h3>Detailed Breakdown</h3>
+                <table class="pro-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th class="text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let item of pieChartData">
+                            <td>{{ item.name }}</td>
+                            <td class="text-right">{{ item.value | currency:'USD' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>

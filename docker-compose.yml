@@ -1,0 +1,36 @@
+services:
+  # 1. Database
+  mongodb:
+    image: mongo:latest
+    container_name: finance-mongodb
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+
+  # 2. Backend (Spring Boot)
+  backend:
+    build: ./finance_tracker
+    container_name: finance-backend
+    restart: always
+    environment:
+      # Matches the property in application.properties: spring.data.mongodb.host=${MONGODB_HOST:localhost}
+      - MONGODB_HOST=mongodb
+    depends_on:
+      - mongodb
+    ports:
+      - "8080:8080"
+
+  # 3. Frontend (Angular + Nginx)
+  frontend:
+    build: ./finance_tracker_client
+    container_name: finance-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:
