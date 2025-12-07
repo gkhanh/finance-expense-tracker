@@ -17,6 +17,8 @@ services:
     environment:
       # Matches the property in application.properties: spring.data.mongodb.host=${MONGODB_HOST:localhost}
       - MONGODB_HOST=mongodb
+    volumes:
+      - ./uploads:/app/uploads
     depends_on:
       - mongodb
     ports:

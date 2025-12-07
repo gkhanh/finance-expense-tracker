@@ -79,6 +79,7 @@ public class SecurityConfig {
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll() // Public endpoints
+                        .requestMatchers("/uploads/**").permitAll() // Allow static resources
                         .requestMatchers("/error").permitAll() // Allow error page
                         .anyRequest().authenticated() // All others secured
                 ).oauth2Login(oauth2 -> {});

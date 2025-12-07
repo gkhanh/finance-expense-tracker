@@ -1,6 +1,7 @@
 export const API_CONFIG = {
-    // Use full URL for local development (Angular serve), relative path for Docker/Prod
-    apiUrl: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    // If we are on port 4200 (Angular Dev Server), go directly to backend port 8080.
+    // Otherwise (Docker/Production on port 80/443), use relative path so Nginx proxies it.
+    apiUrl: window.location.port === '4200' 
         ? 'http://localhost:8080/api' 
         : '/api'
 };

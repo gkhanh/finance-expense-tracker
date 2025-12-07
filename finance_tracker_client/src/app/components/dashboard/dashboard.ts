@@ -43,19 +43,23 @@ export class DashboardComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    this.extractUserFromToken();
+    this.fetchUserProfile(); // Fetch full user profile first
     this.fetchData();
-    this.fetchUserProfile();
   }
 
   fetchUserProfile(): void {
       this.userService.getCurrentUser().subscribe({
           next: (user) => {
+              this.currentUser = user.username; // Set username from API
               if (user.avatarUrl) {
                   this.currentUserAvatar = user.avatarUrl.startsWith('http') ? user.avatarUrl : `${this.apiUrl.replace('/api', '')}${user.avatarUrl}`;
               }
           },
-          error: () => {} // Ignore error, keep default
+          error: (err) => {
+              console.error('Failed to fetch user profile', err);
+              // Fallback to token if API fails
+              this.extractUserFromToken(); 
+          }
       });
   }
 

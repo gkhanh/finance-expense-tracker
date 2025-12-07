@@ -63,9 +63,14 @@ export class LoginComponent implements OnInit {
       },
       error: (error) => {
         this.loading = false;
-        this.errorMessage = (error.status === 401 || error.status === 400) 
-                            ? 'The email or password you entered is incorrect.' 
-                            : 'Unable to connect to server. Please try again later.';
+        if (error.status === 401 || error.status === 400) {
+            // Check if the backend provided a specific message
+            this.errorMessage = error.error?.message || 'The email or password you entered is incorrect.';
+        } else if (error.status === 0) {
+            this.errorMessage = 'Unable to connect to server. Please check your internet connection.';
+        } else {
+            this.errorMessage = 'An unexpected error occurred. Please try again later.';
+        }
       }
     });
   }
@@ -91,7 +96,13 @@ export class LoginComponent implements OnInit {
           },
           error: (error) => {
               this.loading = false;
-              this.errorMessage = 'Invalid Code. Please try again.';
+              if (error.status === 401 || error.status === 400) {
+                  this.errorMessage = error.error?.message || 'Invalid Code. Please try again.';
+              } else if (error.status === 0) {
+                  this.errorMessage = 'Unable to connect to server. Please check your internet connection.';
+              } else {
+                  this.errorMessage = 'An unexpected error occurred. Please try again later.';
+              }
           }
       });
   }

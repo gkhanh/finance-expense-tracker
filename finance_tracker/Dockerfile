@@ -1,6 +1,6 @@
 # Stage 1: Build the application
-# Using Oracle Linux 9 with OpenJDK 25 (GA)
-FROM openjdk:25-ea-25-jdk-oraclelinux9 AS build-java25
+# We use the Oracle Linux 9 base image for Java 25 EA support
+FROM openjdk:25-ea-jdk-oraclelinux9 AS build-java25
 WORKDIR /app
 
 # The minimal Oracle Linux image is missing 'xargs' which gradlew needs.
@@ -13,7 +13,7 @@ COPY . .
 RUN ./gradlew build --no-daemon -x test
 
 # Stage 2: Run the application
-FROM openjdk:25-jdk-oraclelinux9
+FROM openjdk:25-ea-jdk-oraclelinux9
 WORKDIR /app
 COPY --from=build-java25 /app/build/libs/*.jar app.jar
 EXPOSE 8080

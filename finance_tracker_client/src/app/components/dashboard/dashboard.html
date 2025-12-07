@@ -30,7 +30,7 @@
             <div class="card kpi-card income">
                 <h3>Monthly Income ({{ summary?.monthName || 'Current' }})</h3>
                 <div class="value">{{ summary?.monthlyIncome | currency:'USD':'symbol':'1.2-2' }}</div>
-                <div class="trend positive">
+                <div class="trend" [class.positive]="summary?.incomeTrend! > 0" [class.negative]="summary?.incomeTrend! < 0">
                     <span *ngIf="summary?.incomeTrend !== 0 && summary?.incomeTrend !== undefined">
                         {{ getTrendIcon(summary?.incomeTrend) }} {{ getAbsValue(summary?.incomeTrend) | number:'1.0-1' }}% vs last month
                     </span>

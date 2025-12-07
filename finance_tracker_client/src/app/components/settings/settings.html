@@ -1,0 +1,42 @@
+<div class="dashboard-wrapper">
+    <app-sidebar></app-sidebar>
+    <main class="main-content">
+        <header class="top-bar">
+            <h1>Settings</h1>
+        </header>
+
+        <div class="settings-container">
+            <div *ngIf="message" class="alert success">{{ message }}</div>
+            <div *ngIf="error" class="alert error">{{ error }}</div>
+
+            <div class="card settings-card">
+                <h2>Avatar Setup</h2>
+                <div class="form-group file-upload-group">
+                    <label>Upload Avatar Image</label>
+                    <div class="custom-file-input">
+                        <input type="file" id="file" (change)="onFileSelected($event)" accept="image/*">
+                        <label for="file" class="file-label">
+                            <span *ngIf="!selectedFile">Choose File...</span>
+                            <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="avatar-actions">
+                    <button (click)="updateAvatar()" class="btn-primary" [disabled]="!selectedFile">Update Avatar</button>
+                    <button (click)="removeAvatar()" class="btn-secondary">Remove Current Avatar</button>
+                </div>
+            </div>
+
+            <div class="card settings-card danger-zone">
+                <div class="danger-header">
+                    <h2>Danger Zone</h2>
+                    <p>Permanently delete your account and all of your content.</p>
+                </div>
+                <div class="danger-action">
+                    <p class="warning-text">This action is not reversible. Please be certain.</p>
+                    <button (click)="deleteAccount()" class="btn-danger">Delete Account</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>

@@ -10,8 +10,10 @@ import { GoogleLoginProvider } from '@abacritt/angularx-social-login';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
+import { API_CONFIG } from './config';
+
 export function provideSocialAuthConfig(http: HttpClient) {
-  return firstValueFrom(http.get<any>('http://localhost:8080/api/auth/config')).then(config => {
+  return firstValueFrom(http.get<any>(`${API_CONFIG.apiUrl}/auth/config`)).then(config => {
     console.log('Received Auth Config:', config); // Debug Log
     if (!config || !config.googleClientId) {
         console.error('Google Client ID is missing from backend response!');
