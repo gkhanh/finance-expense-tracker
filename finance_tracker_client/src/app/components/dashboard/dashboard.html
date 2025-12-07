@@ -7,8 +7,9 @@
                 <h1>Hello, {{ currentUser }}</h1>
                 <p>Here is your financial performance overview.</p>
             </div>
-            <div class="user-profile">
-                <div class="avatar">{{ currentUser.charAt(0).toUpperCase() }}</div>
+            <div class="user-profile" routerLink="/settings" style="cursor: pointer;">
+                <img *ngIf="currentUserAvatar" [src]="currentUserAvatar" (error)="currentUserAvatar = null" class="avatar-img" alt="Avatar">
+                <div *ngIf="!currentUserAvatar" class="avatar">{{ currentUser.charAt(0).toUpperCase() }}</div>
             </div>
         </header>
 

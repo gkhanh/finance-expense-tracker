@@ -6,7 +6,12 @@ import { TokenService } from './token';
 
 interface AuthResponse {
   message: string;
-  token: string;
+  token?: string;
+  requires2fa?: boolean;
+  setup2fa?: boolean;
+  secret?: string;
+  qrUrl?: string;
+  username?: string;
 }
 
 @Injectable({
@@ -22,7 +27,31 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.apiUrl}/auth/login`, { username, password })
       .pipe(
         tap(response => {
-          this.tokenService.saveToken(response.token);
+          if (response.token) {
+            this.tokenService.saveToken(response.token);
+          }
+        })
+      );
+  }
+
+  public verify2fa(username: string, code: string, password: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-2fa`, { username, code, password })
+      .pipe(
+        tap(response => {
+          if (response.token) {
+            this.tokenService.saveToken(response.token);
+          }
+        })
+      );
+  }
+
+  public verify2faOAuth(username: string, code: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-2fa-oauth`, { username, code })
+      .pipe(
+        tap(response => {
+          if (response.token) {
+            this.tokenService.saveToken(response.token);
+          }
         })
       );
   }
@@ -34,7 +63,9 @@ export class AuthService {
       provider: 'google'
     }).pipe(
       tap(response => {
-        this.tokenService.saveToken(response.token);
+        if (response.token) {
+          this.tokenService.saveToken(response.token);
+        }
       })
     );
   }

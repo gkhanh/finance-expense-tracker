@@ -15,6 +15,12 @@ import { SocialAuthService, GoogleLoginProvider, SocialUser, GoogleSigninButtonM
 export class LoginComponent implements OnInit {
   username = ''; 
   password = ''; 
+  twoFactorCode = '';
+  loginStep: 'credentials' | 'setup' | 'verify' = 'credentials';
+  setupData: any = null;
+  qrCodeUrl = '';
+  showSecret = false;
+  
   errorMessage: string | null = null;
   loading = false;
 
@@ -43,9 +49,17 @@ export class LoginComponent implements OnInit {
     this.loading = true;
 
     this.authService.login(this.username, this.password).subscribe({
-      next: () => {
+      next: (response) => {
         this.loading = false;
-        this.router.navigate(['/dashboard']); 
+        if (response.token) {
+           this.router.navigate(['/dashboard']); 
+        } else if (response.setup2fa) {
+           this.loginStep = 'setup';
+           this.setupData = response;
+           this.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(response.qrUrl!)}`;
+        } else if (response.requires2fa) {
+           this.loginStep = 'verify';
+        }
       },
       error: (error) => {
         this.loading = false;
@@ -56,12 +70,50 @@ export class LoginComponent implements OnInit {
     });
   }
 
+  toggleSecret(): void {
+    this.showSecret = !this.showSecret;
+  }
+
+  onVerify2fa(): void {
+      this.loading = true;
+      this.errorMessage = null;
+      
+      const verify$ = this.password ? 
+        this.authService.verify2fa(this.username, this.twoFactorCode, this.password) :
+        this.authService.verify2faOAuth(this.username, this.twoFactorCode);
+
+      verify$.subscribe({
+          next: (response) => {
+              this.loading = false;
+              if (response.token) {
+                  this.router.navigate(['/dashboard']);
+              }
+          },
+          error: (error) => {
+              this.loading = false;
+              this.errorMessage = 'Invalid Code. Please try again.';
+          }
+      });
+  }
+
   handleGoogleLogin(idToken: string): void {
     this.loading = true;
     this.authService.loginWithGoogle(idToken).subscribe({
-      next: () => {
+      next: (response) => {
         this.loading = false;
-        this.router.navigate(['/dashboard']);
+        if (response.token) {
+           this.router.navigate(['/dashboard']);
+        } else if (response.setup2fa) {
+           this.username = response.username!; // Store username for step 2
+           this.password = ''; // Clear password for oauth flow
+           this.loginStep = 'setup';
+           this.setupData = response;
+           this.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(response.qrUrl!)}`;
+        } else if (response.requires2fa) {
+           this.username = response.username!; // Store username for step 3
+           this.password = ''; // Clear password for oauth flow
+           this.loginStep = 'verify';
+        }
       },
       error: (error) => {
         this.loading = false;

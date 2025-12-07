@@ -44,6 +44,9 @@ dependencies {
 
 	// Add OAuth2 Client
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+	// Google Authenticator
+	implementation 'com.warrenstrange:googleauth:1.5.0'
 }
 
 tasks.named('test') {

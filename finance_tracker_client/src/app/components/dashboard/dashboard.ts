@@ -1,28 +1,32 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule, CurrencyPipe, DecimalPipe } from '@angular/common'; 
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { DataService, DashboardSummary, TrendPoint } from '../../services/data'; 
 import { AuthService } from '../../services/auth';
+import { UserService } from '../../services/user.service';
 import { SocialAuthService } from '@abacritt/angularx-social-login';
 import { catchError, finalize, of } from 'rxjs';
 import { SidebarComponent } from '../shared/sidebar';
+import { API_CONFIG } from '../../config';
 
 interface CategoryBreakdown { [category: string]: number; }
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, CurrencyPipe, DecimalPipe, SidebarComponent], 
+  imports: [CommonModule, CurrencyPipe, DecimalPipe, SidebarComponent, RouterModule], 
   templateUrl: './dashboard.html', 
   styleUrls: ['./dashboard.css']
 })
 export class DashboardComponent implements OnInit {
   currentUser: string = 'Customer'; 
+  currentUserAvatar: string | null = null;
   summary: DashboardSummary | null = null;
   categoryBreakdown: CategoryBreakdown | null = null;
   trendData: TrendPoint[] = [];
   loading = true;
   error: string | null = null;
+  apiUrl = API_CONFIG.apiUrl;
 
   pieChartData: { name: string, value: number, percentage: number }[] = [];
   
@@ -33,6 +37,7 @@ export class DashboardComponent implements OnInit {
   constructor(
     private dataService: DataService, 
     private authService: AuthService,
+    private userService: UserService,
     private router: Router,
     private socialAuthService: SocialAuthService
   ) { }
@@ -40,6 +45,18 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.extractUserFromToken();
     this.fetchData();
+    this.fetchUserProfile();
+  }
+
+  fetchUserProfile(): void {
+      this.userService.getCurrentUser().subscribe({
+          next: (user) => {
+              if (user.avatarUrl) {
+                  this.currentUserAvatar = user.avatarUrl.startsWith('http') ? user.avatarUrl : `${this.apiUrl.replace('/api', '')}${user.avatarUrl}`;
+              }
+          },
+          error: () => {} // Ignore error, keep default
+      });
   }
 
   extractUserFromToken(): void {

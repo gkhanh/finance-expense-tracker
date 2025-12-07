@@ -6,8 +6,10 @@ import com.example.finance_tracker.auth.model.PasswordResetToken;
 import com.example.finance_tracker.auth.model.User;
 import com.example.finance_tracker.auth.repository.PasswordResetRepository;
 import com.example.finance_tracker.auth.repository.UserRepository;
+import com.example.finance_tracker.auth.service.AuthService;
 import com.example.finance_tracker.auth.service.EmailService;
 import com.example.finance_tracker.auth.service.OAuthService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -16,11 +18,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import com.example.finance_tracker.auth.service.UserDetailsServiceImpl;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -36,15 +40,18 @@ public class AuthController {
     private final OAuthService oAuthService;
     private final PasswordResetRepository passwordResetRepository;
     private final EmailService emailService;
+    private final AuthService authService;
+    private final UserDetailsServiceImpl userDetailsService;
 
-    // Use constructor injection for all dependencies
     public AuthController(AuthenticationManager authenticationManager, 
                           UserRepository userRepository, 
                           PasswordEncoder encoder, 
                           JwtUtils jwtUtils, 
                           OAuthService oAuthService,
                           PasswordResetRepository passwordResetRepository,
-                          EmailService emailService) {
+                          EmailService emailService,
+                          AuthService authService,
+                          UserDetailsServiceImpl userDetailsService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.encoder = encoder;
@@ -52,21 +59,22 @@ public class AuthController {
         this.oAuthService = oAuthService;
         this.passwordResetRepository = passwordResetRepository;
         this.emailService = emailService;
+        this.authService = authService;
+        this.userDetailsService = userDetailsService;
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
             return ResponseEntity.badRequest().body(Map.of("message", "Error: Username is already taken!"));
         }
 
         User user = new User();
         user.setUsername(registerRequest.getUsername());
-        //Encode the password before saving
         user.setPassword(encoder.encode(registerRequest.getPassword()));
         user.setEmail(registerRequest.getEmail());
         user.setRole(registerRequest.getRole());
-        user.setProvider("local"); // Default provider
+        user.setProvider("local"); 
 
         userRepository.save(user);
 
@@ -78,14 +86,53 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtils.generateJwtToken(authentication);
+        org.springframework.security.core.userdetails.User springUser = 
+            (org.springframework.security.core.userdetails.User) authentication.getPrincipal();
+        
+        User user = userRepository.findByUsername(springUser.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Return the JWT token in the response
-        return ResponseEntity.ok(Map.of(
-                "message", "Login successful!",
-                "token", jwt
-        ));
+        if (user.isTwoFactorEnabled()) {
+             return ResponseEntity.ok(Map.of("requires2fa", true, "username", user.getUsername()));
+        } else {
+             // Force setup
+             if (user.getTwoFactorSecret() == null) {
+                 user.setTwoFactorSecret(authService.generate2faSecret());
+                 userRepository.save(user);
+             }
+             String qrUrl = "otpauth://totp/FinanceTracker:" + user.getUsername() + "?secret=" + user.getTwoFactorSecret() + "&issuer=FinanceTracker";
+             return ResponseEntity.ok(Map.of(
+                 "setup2fa", true, 
+                 "secret", user.getTwoFactorSecret(), 
+                 "qrUrl", qrUrl, 
+                 "username", user.getUsername()
+             ));
+        }
+    }
+    
+    @PostMapping("/verify-2fa")
+    public ResponseEntity<?> verify2fa(@RequestBody Map<String, Object> request) {
+        String username = (String) request.get("username");
+        String password = (String) request.get("password");
+        String codeStr = request.get("code").toString();
+        int code = Integer.parseInt(codeStr);
+
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(username, password));
+        
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (authService.verify2fa(user.getTwoFactorSecret(), code)) {
+            user.setTwoFactorEnabled(true);
+            userRepository.save(user);
+            
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtUtils.generateJwtToken(authentication);
+            return ResponseEntity.ok(Map.of("message", "Login successful!", "token", jwt));
+        } else {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid 2FA Code"));
+        }
     }
 
     @GetMapping("/config")
@@ -95,17 +142,57 @@ public class AuthController {
 
     @PostMapping("/oauth")
     public ResponseEntity<?> authenticateOAuth(@RequestBody OAuthLoginRequest oauthRequest) {
-        String jwt;
+        Map<String, Object> oauthResult;
         if ("google".equalsIgnoreCase(oauthRequest.getProvider())) {
-            jwt = oAuthService.processGoogleLogin(oauthRequest.getToken());
+            oauthResult = oAuthService.processGoogleLogin(oauthRequest.getToken());
         } else {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid provider"));
         }
+        
+        User user = (User) oauthResult.get("user");
 
-        return ResponseEntity.ok(Map.of(
-                "message", "Login successful!",
-                "token", jwt
-        ));
+        if (user.isTwoFactorEnabled()) {
+             return ResponseEntity.ok(Map.of("requires2fa", true, "username", user.getUsername()));
+        } else {
+             // Force setup
+             if (user.getTwoFactorSecret() == null) {
+                 user.setTwoFactorSecret(authService.generate2faSecret());
+                 userRepository.save(user);
+             }
+             String qrUrl = "otpauth://totp/FinanceTracker:" + user.getUsername() + "?secret=" + user.getTwoFactorSecret() + "&issuer=FinanceTracker";
+             return ResponseEntity.ok(Map.of(
+                 "setup2fa", true, 
+                 "secret", user.getTwoFactorSecret(), 
+                 "qrUrl", qrUrl, 
+                 "username", user.getUsername()
+             ));
+        }
+    }
+    
+    @PostMapping("/verify-2fa-oauth")
+    public ResponseEntity<?> verify2faOAuth(@RequestBody Map<String, Object> request) {
+        String username = (String) request.get("username");
+        String codeStr = request.get("code").toString();
+        int code = Integer.parseInt(codeStr);
+        
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (authService.verify2fa(user.getTwoFactorSecret(), code)) {
+            user.setTwoFactorEnabled(true);
+            userRepository.save(user);
+            
+             // Generate JWT for OAuth User
+            UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+            UsernamePasswordAuthenticationToken authentication = 
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            String jwt = jwtUtils.generateJwtToken(authentication);
+            return ResponseEntity.ok(Map.of("message", "Login successful!", "token", jwt));
+        } else {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid 2FA Code"));
+        }
     }
 
     @PostMapping("/forgot-password")
@@ -117,12 +204,8 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("message", "Error: Email not found!"));
         }
 
-        // Generate 6-digit numeric code
         String token = String.format("%06d", new java.util.Random().nextInt(999999));
-
-        // Delete existing token if any
         passwordResetRepository.deleteByEmail(email);
-
         PasswordResetToken resetToken = new PasswordResetToken(email, token, LocalDateTime.now().plusMinutes(15));
         passwordResetRepository.save(resetToken);
 
@@ -132,7 +215,7 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         Optional<PasswordResetToken> tokenOptional = passwordResetRepository.findByToken(request.getToken());
 
         if (tokenOptional.isEmpty()) {
@@ -158,7 +241,6 @@ public class AuthController {
         user.setPassword(encoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        // Delete token after successful reset
         passwordResetRepository.delete(resetToken);
 
         return ResponseEntity.ok(Map.of("message", "Password successfully reset!"));

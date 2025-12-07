@@ -43,7 +43,7 @@ public class OAuthService {
         this.restTemplate = new RestTemplate();
     }
 
-    public String processGoogleLogin(String idToken) {
+    public Map<String, Object> processGoogleLogin(String idToken) {
         try {
             // 1. Verify Google Token
             String url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken;
@@ -62,9 +62,10 @@ public class OAuthService {
             String email = body.get("email").asText();
             String googleId = body.get("sub").asText();
             String name = body.has("name") ? body.get("name").asText() : email.split("@")[0];
+            String picture = body.has("picture") ? body.get("picture").asText() : null;
 
             // 2. Find or Create User
-            return processUser(email, googleId, "google", name);
+            return processUser(email, googleId, "google", name, picture);
 
         } catch (Exception e) {
             // Log the error for debugging
@@ -74,7 +75,7 @@ public class OAuthService {
         }
     }
 
-    private String processUser(String email, String providerId, String provider, String username) {
+    private Map<String, Object> processUser(String email, String providerId, String provider, String username, String pictureUrl) {
         Optional<User> existingUser = userRepository.findByEmail(email);
         User user;
 
@@ -84,6 +85,11 @@ public class OAuthService {
             if (user.getProvider() == null) {
                 user.setProvider(provider);
                 user.setProviderId(providerId);
+                userRepository.save(user);
+            }
+            // Update avatar if missing and provided by OAuth
+            if (user.getAvatarUrl() == null && pictureUrl != null) {
+                user.setAvatarUrl(pictureUrl);
                 userRepository.save(user);
             }
         } else {
@@ -104,18 +110,13 @@ public class OAuthService {
             user.setProviderId(providerId);
             user.setRole("USER");
             user.setPassword(null); // No password for OAuth
+            if (pictureUrl != null) {
+                user.setAvatarUrl(pictureUrl);
+            }
             userRepository.save(user);
         }
 
-        // 3. Generate JWT
-        // We need to load UserDetails to generate the token
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
-        
-        // Manually set authentication context
-        UsernamePasswordAuthenticationToken authentication = 
-            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        return jwtUtils.generateJwtToken(authentication);
+        // Return user info for 2FA check
+        return Map.of("user", user);
     }
 }

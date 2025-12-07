@@ -33,6 +33,12 @@ export class RegisterComponent implements OnInit {
       return;
     }
 
+    const passwordRegex = /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!]).{10,}$/;
+    if (!passwordRegex.test(this.password)) {
+      this.errorMessage = 'Password must be at least 10 characters long and contain at least one digit, one lowercase letter, one uppercase letter, and one special character.';
+      return;
+    }
+
     this.errorMessage = null;
     this.loading = true;
 

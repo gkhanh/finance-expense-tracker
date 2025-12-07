@@ -7,6 +7,7 @@ import { ExpenseListComponent } from './components/expense/expense-list/expense-
 import { ExpenseFormComponent } from './components/expense/expense-form/expense-form';
 import { RevenueListComponent } from './components/revenue/revenue-list/revenue-list';
 import { RevenueFormComponent } from './components/revenue/revenue-form/revenue-form';
+import { SettingsComponent } from './components/settings/settings';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -17,6 +18,7 @@ export const routes: Routes = [
 
   // Protected Routes
   { path: 'dashboard', component: DashboardComponent, canActivate: [authGuard] },
+  { path: 'settings', component: SettingsComponent, canActivate: [authGuard] },
   
   // Expenses
   { path: 'expenses', component: ExpenseListComponent, canActivate: [authGuard] },

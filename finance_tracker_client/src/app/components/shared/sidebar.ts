@@ -15,6 +15,7 @@ import { SocialAuthService } from '@abacritt/angularx-social-login';
             <li routerLink="/dashboard" routerLinkActive="active">Overview</li>
             <li routerLink="/expenses" routerLinkActive="active">Expenses</li>
             <li routerLink="/revenues" routerLinkActive="active">Revenues</li>
+            <li routerLink="/settings" routerLinkActive="active">Settings</li>
             <li (click)="onLogout()" class="logout-item">Logout</li>
         </ul>
     </nav>

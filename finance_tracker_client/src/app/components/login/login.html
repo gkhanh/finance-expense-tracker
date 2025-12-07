@@ -8,7 +8,8 @@
 
         <!-- Right Side: Glassmorphism Panel -->
         <div class="glass-panel">
-            <form (ngSubmit)="onLogin()">
+            <!-- Step 1: Login -->
+            <form *ngIf="loginStep === 'credentials'" (ngSubmit)="onLogin()">
                 <div class="input-group">
                     <input 
                         id="username" 
@@ -52,6 +53,51 @@
                     <button type="button" class="btn-register" (click)="goToRegister()">Create New Account</button>
                 </div>
             </form>
+
+            <!-- Step 2: Setup 2FA -->
+            <div *ngIf="loginStep === 'setup'" class="auth-step">
+                <h2 style="text-align:center; margin-bottom: 20px; color: #1e293b;">Setup 2FA</h2>
+                <p style="text-align:center; color: #64748b;">Scan with Google Authenticator</p>
+                <div style="text-align:center; margin: 20px 0; display: flex; justify-content: center;">
+                    <img [src]="qrCodeUrl" alt="QR Code" style="border-radius: 10px; border: 5px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                </div>
+                
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <button type="button" class="btn-link" (click)="toggleSecret()">
+                        {{ showSecret ? 'Hide Secret Key' : 'Can\'t scan the code?' }}
+                    </button>
+                    <p *ngIf="showSecret" style="margin-top: 10px; font-size: 0.9em; color: #64748b; word-break: break-all;">
+                        Key: <strong style="color: #334155; user-select: text;">{{ setupData?.secret }}</strong>
+                    </p>
+                </div>
+                
+                <form (ngSubmit)="onVerify2fa()">
+                    <div class="input-group">
+                        <input type="text" [(ngModel)]="twoFactorCode" name="code" placeholder="Enter 6-digit code" required style="text-align:center; letter-spacing: 5px; font-size: 1.2rem;">
+                    </div>
+                    <button type="submit" class="btn-login" [disabled]="loading">
+                        {{ loading ? 'Verifying...' : 'Verify & Enable' }}
+                    </button>
+                    <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+                </form>
+            </div>
+
+            <!-- Step 3: Verify 2FA -->
+            <div *ngIf="loginStep === 'verify'" class="auth-step">
+                <h2 style="text-align:center; margin-bottom: 20px; color: #1e293b;">Security Check</h2>
+                <p style="text-align:center; color: #64748b; margin-bottom: 20px;">Enter the code from your authenticator app</p>
+                
+                <form (ngSubmit)="onVerify2fa()">
+                    <div class="input-group">
+                        <input type="text" [(ngModel)]="twoFactorCode" name="code" placeholder="000000" required style="text-align:center; letter-spacing: 5px; font-size: 1.2rem;">
+                    </div>
+                    <button type="submit" class="btn-login" [disabled]="loading">
+                        {{ loading ? 'Verifying...' : 'Verify' }}
+                    </button>
+                    <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+                </form>
+            </div>
+
         </div>
     </div>
 </div>

@@ -17,4 +17,9 @@ public class User {
     // New fields for OAuth
     private String provider;
     private String providerId;
+
+    // 2FA and Avatar
+    private String twoFactorSecret;
+    private boolean isTwoFactorEnabled;
+    private String avatarUrl;
 }

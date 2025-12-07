@@ -230,6 +230,20 @@ input::placeholder {
     border: 1px solid #fecaca;
 }
 
+.btn-link {
+    background: none;
+    border: none;
+    color: #3b82f6;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: underline;
+    padding: 0;
+}
+
+.btn-link:hover {
+    color: #2563eb;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .login-container {
