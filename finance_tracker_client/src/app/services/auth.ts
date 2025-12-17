@@ -34,8 +34,12 @@ export class AuthService {
       );
   }
 
-  public verify2fa(username: string, code: string, password: string): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-2fa`, { username, code, password })
+  public send2FAEmailOtp(username: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/auth/send-2fa-email-otp`, { username });
+  }
+
+  public verify2fa(username: string, code: string, password: string, useEmailOtp: boolean = false): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-2fa`, { username, code, password, useEmailOtp })
       .pipe(
         tap(response => {
           if (response.token) {
@@ -45,8 +49,8 @@ export class AuthService {
       );
   }
 
-  public verify2faOAuth(username: string, code: string): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-2fa-oauth`, { username, code })
+  public verify2faOAuth(username: string, code: string, useEmailOtp: boolean = false): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/verify-2fa-oauth`, { username, code, useEmailOtp })
       .pipe(
         tap(response => {
           if (response.token) {

@@ -24,4 +24,14 @@ public class EmailService {
         
         mailSender.send(message);
     }
+
+    public void send2FASetupEmail(String toEmail, String token) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(toEmail);
+        message.setSubject("2FA Setup Code - Finance Tracker");
+        message.setText("To complete your 2FA setup, please use the following code:\n\n" + token + "\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.");
+        
+        mailSender.send(message);
+    }
 }

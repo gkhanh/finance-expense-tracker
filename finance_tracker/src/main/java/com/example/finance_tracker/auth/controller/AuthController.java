@@ -3,8 +3,10 @@ package com.example.finance_tracker.auth.controller;
 import com.example.finance_tracker.auth.dto.*;
 import com.example.finance_tracker.auth.jwt.JwtUtils;
 import com.example.finance_tracker.auth.model.PasswordResetToken;
+import com.example.finance_tracker.auth.model.TwoFactorSetupToken;
 import com.example.finance_tracker.auth.model.User;
 import com.example.finance_tracker.auth.repository.PasswordResetRepository;
+import com.example.finance_tracker.auth.repository.TwoFactorSetupRepository;
 import com.example.finance_tracker.auth.repository.UserRepository;
 import com.example.finance_tracker.auth.service.AuthService;
 import com.example.finance_tracker.auth.service.EmailService;
@@ -39,6 +41,7 @@ public class AuthController {
     private final JwtUtils jwtUtils;
     private final OAuthService oAuthService;
     private final PasswordResetRepository passwordResetRepository;
+    private final TwoFactorSetupRepository twoFactorSetupRepository;
     private final EmailService emailService;
     private final AuthService authService;
     private final UserDetailsServiceImpl userDetailsService;
@@ -49,6 +52,7 @@ public class AuthController {
                           JwtUtils jwtUtils, 
                           OAuthService oAuthService,
                           PasswordResetRepository passwordResetRepository,
+                          TwoFactorSetupRepository twoFactorSetupRepository,
                           EmailService emailService,
                           AuthService authService,
                           UserDetailsServiceImpl userDetailsService) {
@@ -58,6 +62,7 @@ public class AuthController {
         this.jwtUtils = jwtUtils;
         this.oAuthService = oAuthService;
         this.passwordResetRepository = passwordResetRepository;
+        this.twoFactorSetupRepository = twoFactorSetupRepository;
         this.emailService = emailService;
         this.authService = authService;
         this.userDetailsService = userDetailsService;
@@ -110,12 +115,58 @@ public class AuthController {
         }
     }
     
+    @PostMapping("/send-2fa-email-otp")
+    public ResponseEntity<?> send2FAEmailOtp(@RequestBody Map<String, Object> request) {
+        String username = (String) request.get("username");
+        
+        if (username == null || username.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Username is required"));
+        }
+        
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "User email not found"));
+        }
+        
+        // Generate 6-digit OTP
+        String token = String.format("%06d", new java.util.Random().nextInt(999999));
+        
+        // Delete any existing tokens for this user
+        twoFactorSetupRepository.deleteByUsername(username);
+        
+        // Create new token (expires in 10 minutes)
+        TwoFactorSetupToken setupToken = new TwoFactorSetupToken(
+            username, 
+            user.getEmail(), 
+            token, 
+            LocalDateTime.now().plusMinutes(10)
+        );
+        twoFactorSetupRepository.save(setupToken);
+        
+        // Send email
+        emailService.send2FASetupEmail(user.getEmail(), token);
+        
+        return ResponseEntity.ok(Map.of("message", "OTP code sent to your email"));
+    }
+
     @PostMapping("/verify-2fa")
     public ResponseEntity<?> verify2fa(@RequestBody Map<String, Object> request) {
         String username = (String) request.get("username");
         String password = (String) request.get("password");
         String codeStr = request.get("code").toString();
-        int code = Integer.parseInt(codeStr);
+        Boolean useEmailOtp = request.get("useEmailOtp") != null ? (Boolean) request.get("useEmailOtp") : false;
+        
+        // Validate code format
+        if (codeStr == null || codeStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Please enter a 6-digit code."));
+        }
+        
+        // Check if code contains non-numeric characters or wrong length
+        if (!codeStr.matches("\\d{6}")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid code format. Please enter exactly 6 digits."));
+        }
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(username, password));
@@ -123,7 +174,37 @@ public class AuthController {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (authService.verify2fa(user.getTwoFactorSecret(), code)) {
+        boolean isValid = false;
+        
+        if (useEmailOtp) {
+            // Verify email OTP
+            Optional<TwoFactorSetupToken> tokenOptional = twoFactorSetupRepository.findByUsername(username);
+            if (tokenOptional.isPresent()) {
+                TwoFactorSetupToken setupToken = tokenOptional.get();
+                if (setupToken.getToken().equals(codeStr) && !setupToken.isExpired()) {
+                    isValid = true;
+                    // Delete the token after use
+                    twoFactorSetupRepository.delete(setupToken);
+                } else if (setupToken.isExpired()) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Email OTP has expired. Please request a new one."));
+                } else {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Invalid email OTP. Please check your email and try again."));
+                }
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("message", "No email OTP found. Please request a new one."));
+            }
+        } else {
+            // Verify TOTP from authenticator app
+            int code;
+            try {
+                code = Integer.parseInt(codeStr);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Invalid code format. Please enter a 6-digit numeric code."));
+            }
+            isValid = authService.verify2fa(user.getTwoFactorSecret(), code);
+        }
+        
+        if (isValid) {
             user.setTwoFactorEnabled(true);
             userRepository.save(user);
             
@@ -131,7 +212,7 @@ public class AuthController {
             String jwt = jwtUtils.generateJwtToken(authentication);
             return ResponseEntity.ok(Map.of("message", "Login successful!", "token", jwt));
         } else {
-            return ResponseEntity.badRequest().body(Map.of("message", "Invalid 2FA Code"));
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid 2FA code. Please check and try again."));
         }
     }
 
@@ -173,12 +254,52 @@ public class AuthController {
     public ResponseEntity<?> verify2faOAuth(@RequestBody Map<String, Object> request) {
         String username = (String) request.get("username");
         String codeStr = request.get("code").toString();
-        int code = Integer.parseInt(codeStr);
+        Boolean useEmailOtp = request.get("useEmailOtp") != null ? (Boolean) request.get("useEmailOtp") : false;
+        
+        // Validate code format
+        if (codeStr == null || codeStr.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Please enter a 6-digit code."));
+        }
+        
+        // Check if code contains non-numeric characters or wrong length
+        if (!codeStr.matches("\\d{6}")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid code format. Please enter exactly 6 digits."));
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (authService.verify2fa(user.getTwoFactorSecret(), code)) {
+        boolean isValid = false;
+        
+        if (useEmailOtp) {
+            // Verify email OTP
+            Optional<TwoFactorSetupToken> tokenOptional = twoFactorSetupRepository.findByUsername(username);
+            if (tokenOptional.isPresent()) {
+                TwoFactorSetupToken setupToken = tokenOptional.get();
+                if (setupToken.getToken().equals(codeStr) && !setupToken.isExpired()) {
+                    isValid = true;
+                    // Delete the token after use
+                    twoFactorSetupRepository.delete(setupToken);
+                } else if (setupToken.isExpired()) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Email OTP has expired. Please request a new one."));
+                } else {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Invalid email OTP. Please check your email and try again."));
+                }
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("message", "No email OTP found. Please request a new one."));
+            }
+        } else {
+            // Verify TOTP from authenticator app
+            int code;
+            try {
+                code = Integer.parseInt(codeStr);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Invalid code format. Please enter a 6-digit numeric code."));
+            }
+            isValid = authService.verify2fa(user.getTwoFactorSecret(), code);
+        }
+        
+        if (isValid) {
             user.setTwoFactorEnabled(true);
             userRepository.save(user);
             
@@ -191,7 +312,7 @@ public class AuthController {
             String jwt = jwtUtils.generateJwtToken(authentication);
             return ResponseEntity.ok(Map.of("message", "Login successful!", "token", jwt));
         } else {
-            return ResponseEntity.badRequest().body(Map.of("message", "Invalid 2FA Code"));
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid 2FA code. Please check and try again."));
         }
     }
 

@@ -56,46 +56,169 @@
 
             <!-- Step 2: Setup 2FA -->
             <div *ngIf="loginStep === 'setup'" class="auth-step">
-                <h2 style="text-align:center; margin-bottom: 20px; color: #1e293b;">Setup 2FA</h2>
-                <p style="text-align:center; color: #64748b;">Scan with Google Authenticator</p>
-                <div style="text-align:center; margin: 20px 0; display: flex; justify-content: center;">
-                    <img [src]="qrCodeUrl" alt="QR Code" style="border-radius: 10px; border: 5px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                </div>
+                <h2 style="text-align:center; margin-bottom: 10px; color: #1e293b;">Setup 2FA</h2>
                 
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <button type="button" class="btn-link" (click)="toggleSecret()">
-                        {{ showSecret ? 'Hide Secret Key' : 'Can\'t scan the code?' }}
-                    </button>
-                    <p *ngIf="showSecret" style="margin-top: 10px; font-size: 0.9em; color: #64748b; word-break: break-all;">
-                        Key: <strong style="color: #334155; user-select: text;">{{ setupData?.secret }}</strong>
-                    </p>
-                </div>
-                
-                <form (ngSubmit)="onVerify2fa()">
-                    <div class="input-group">
-                        <input type="text" [(ngModel)]="twoFactorCode" name="code" placeholder="Enter 6-digit code" required style="text-align:center; letter-spacing: 5px; font-size: 1.2rem;">
+                <!-- QR Code Method -->
+                <div *ngIf="!useEmailOtp">
+                    <p style="text-align:center; color: #64748b; margin-bottom: 15px; font-size: 0.9rem;">Scan QR code with Google Authenticator</p>
+                    <div style="text-align:center; margin: 20px 0; display: flex; justify-content: center;">
+                        <img [src]="qrCodeUrl" alt="QR Code" style="border-radius: 10px; border: 5px solid white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                     </div>
-                    <button type="submit" class="btn-login" [disabled]="loading">
-                        {{ loading ? 'Verifying...' : 'Verify & Enable' }}
-                    </button>
-                    <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
-                </form>
+                    
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <button type="button" class="btn-link" (click)="sendEmailOtp()" [disabled]="loading">
+                            Can't scan? Email me a code instead
+                        </button>
+                    </div>
+
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 20px; text-align: left;">
+                        <p style="margin: 0; font-size: 0.85rem; color: #1e40af; line-height: 1.5;">
+                            <strong>📱 Instructions:</strong> After scanning the QR code, open your Google Authenticator app to get a <strong>6-digit code</strong>. Enter that code below.
+                        </p>
+                    </div>
+                    
+                    <form (ngSubmit)="onVerify2fa()">
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                [(ngModel)]="twoFactorCode" 
+                                name="code" 
+                                placeholder="000000" 
+                                maxlength="6" 
+                                pattern="[0-9]{6}"
+                                (input)="onCodeInput($event)"
+                                required 
+                                style="text-align:center; letter-spacing: 8px; font-size: 1.3rem; font-weight: 600;">
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: -10px; margin-bottom: 15px; text-align: center;">
+                            Enter 6-digit code from authenticator app
+                        </p>
+                        <button type="submit" class="btn-login" [disabled]="loading || !isValidCode()">
+                            {{ loading ? 'Verifying...' : 'Verify & Enable' }}
+                        </button>
+                        <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+                    </form>
+                </div>
+
+                <!-- Email OTP Method -->
+                <div *ngIf="useEmailOtp">
+                    <div *ngIf="emailOtpSent" style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: center;">
+                        <p style="margin: 0; font-size: 0.9rem; color: #166534; line-height: 1.5;">
+                            <strong>✓ {{ emailOtpMessage }}</strong><br>
+                            <span style="font-size: 0.85rem;">Please check your email and enter the 6-digit code below.</span>
+                        </p>
+                    </div>
+                    
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 20px; text-align: left;">
+                        <p style="margin: 0; font-size: 0.85rem; color: #1e40af; line-height: 1.5;">
+                            <strong>📧 Email Method:</strong> Check your email inbox for the 6-digit OTP code. Enter it below to complete 2FA setup.
+                        </p>
+                    </div>
+                    
+                    <form (ngSubmit)="onVerify2fa()">
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                [(ngModel)]="twoFactorCode" 
+                                name="code" 
+                                placeholder="000000" 
+                                maxlength="6" 
+                                pattern="[0-9]{6}"
+                                (input)="onCodeInput($event)"
+                                required 
+                                style="text-align:center; letter-spacing: 8px; font-size: 1.3rem; font-weight: 600;">
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: -10px; margin-bottom: 15px; text-align: center;">
+                            Enter 6-digit code from your email
+                        </p>
+                        <button type="submit" class="btn-login" [disabled]="loading || !isValidCode()">
+                            {{ loading ? 'Verifying...' : 'Verify & Enable' }}
+                        </button>
+                        <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+                    </form>
+                    
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button type="button" class="btn-link" (click)="useEmailOtp = false; emailOtpSent = false; twoFactorCode = '';">
+                            ← Back to QR code
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Step 3: Verify 2FA -->
             <div *ngIf="loginStep === 'verify'" class="auth-step">
                 <h2 style="text-align:center; margin-bottom: 20px; color: #1e293b;">Security Check</h2>
-                <p style="text-align:center; color: #64748b; margin-bottom: 20px;">Enter the code from your authenticator app</p>
                 
-                <form (ngSubmit)="onVerify2fa()">
-                    <div class="input-group">
-                        <input type="text" [(ngModel)]="twoFactorCode" name="code" placeholder="000000" required style="text-align:center; letter-spacing: 5px; font-size: 1.2rem;">
+                <!-- Authenticator App Method -->
+                <div *ngIf="!useEmailOtp">
+                    <p style="text-align:center; color: #64748b; margin-bottom: 20px;">Enter the 6-digit code from your authenticator app</p>
+                    
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <button type="button" class="btn-link" (click)="sendEmailOtp()" [disabled]="loading">
+                            Use email code instead
+                        </button>
                     </div>
-                    <button type="submit" class="btn-login" [disabled]="loading">
-                        {{ loading ? 'Verifying...' : 'Verify' }}
-                    </button>
-                    <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
-                </form>
+                    
+                    <form (ngSubmit)="onVerify2fa()">
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                [(ngModel)]="twoFactorCode" 
+                                name="code" 
+                                placeholder="000000" 
+                                maxlength="6" 
+                                pattern="[0-9]{6}"
+                                (input)="onCodeInput($event)"
+                                required 
+                                style="text-align:center; letter-spacing: 8px; font-size: 1.3rem; font-weight: 600;">
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: -10px; margin-bottom: 15px; text-align: center;">
+                            Open your authenticator app to get the code
+                        </p>
+                        <button type="submit" class="btn-login" [disabled]="loading || !isValidCode()">
+                            {{ loading ? 'Verifying...' : 'Verify' }}
+                        </button>
+                        <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+                    </form>
+                </div>
+
+                <!-- Email OTP Method -->
+                <div *ngIf="useEmailOtp">
+                    <div *ngIf="emailOtpSent" style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: center;">
+                        <p style="margin: 0; font-size: 0.9rem; color: #166534; line-height: 1.5;">
+                            <strong>✓ {{ emailOtpMessage }}</strong><br>
+                            <span style="font-size: 0.85rem;">Please check your email and enter the 6-digit code below.</span>
+                        </p>
+                    </div>
+                    
+                    <form (ngSubmit)="onVerify2fa()">
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                [(ngModel)]="twoFactorCode" 
+                                name="code" 
+                                placeholder="000000" 
+                                maxlength="6" 
+                                pattern="[0-9]{6}"
+                                (input)="onCodeInput($event)"
+                                required 
+                                style="text-align:center; letter-spacing: 8px; font-size: 1.3rem; font-weight: 600;">
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: -10px; margin-bottom: 15px; text-align: center;">
+                            Enter 6-digit code from your email
+                        </p>
+                        <button type="submit" class="btn-login" [disabled]="loading || !isValidCode()">
+                            {{ loading ? 'Verifying...' : 'Verify' }}
+                        </button>
+                        <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+                    </form>
+                    
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button type="button" class="btn-link" (click)="useEmailOtp = false; emailOtpSent = false; twoFactorCode = '';">
+                            ← Back to authenticator app
+                        </button>
+                    </div>
+                </div>
             </div>
 
         </div>

@@ -19,7 +19,10 @@ export class LoginComponent implements OnInit {
   loginStep: 'credentials' | 'setup' | 'verify' = 'credentials';
   setupData: any = null;
   qrCodeUrl = '';
-  showSecret = false;
+  showSecret = false;  // Keep original property
+  useEmailOtp = false;  // New property for email OTP
+  emailOtpSent = false;  // New property
+  emailOtpMessage = '';  // New property
   
   errorMessage: string | null = null;
   loading = false;
@@ -57,8 +60,16 @@ export class LoginComponent implements OnInit {
            this.loginStep = 'setup';
            this.setupData = response;
            this.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(response.qrUrl!)}`;
+           this.useEmailOtp = false;
+           this.emailOtpSent = false;
+           this.emailOtpMessage = '';
+           this.twoFactorCode = '';
         } else if (response.requires2fa) {
            this.loginStep = 'verify';
+           this.useEmailOtp = false;
+           this.emailOtpSent = false;
+           this.emailOtpMessage = '';
+           this.twoFactorCode = '';
         }
       },
       error: (error) => {
@@ -79,13 +90,66 @@ export class LoginComponent implements OnInit {
     this.showSecret = !this.showSecret;
   }
 
+  onCodeInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    // Remove any non-digit characters
+    let value = input.value.replace(/\D/g, '');
+    // Limit to 6 digits
+    value = value.slice(0, 6);
+    this.twoFactorCode = value;
+    input.value = value;
+    
+    // Clear error message when user starts typing
+    if (this.errorMessage && value.length > 0) {
+      this.errorMessage = null;
+    }
+  }
+
+  isValidCode(): boolean {
+    return /^\d{6}$/.test(this.twoFactorCode);
+  }
+
+  sendEmailOtp(): void {
+    this.loading = true;
+    this.errorMessage = null;
+    this.emailOtpMessage = '';
+
+    this.authService.send2FAEmailOtp(this.username).subscribe({
+      next: (response) => {
+        this.loading = false;
+        this.useEmailOtp = true;
+        this.emailOtpSent = true;
+        this.emailOtpMessage = response.message || 'An email with OTP code has been sent to your email address.';
+      },
+      error: (error) => {
+        this.loading = false;
+        if (error.status === 400) {
+          this.errorMessage = error.error?.message || 'Failed to send email OTP. Please try again.';
+        } else if (error.status === 0) {
+          this.errorMessage = 'Unable to connect to server. Please check your internet connection.';
+        } else {
+          this.errorMessage = 'Failed to send email OTP. Please try again later.';
+        }
+      }
+    });
+  }
+
   onVerify2fa(): void {
+      // Validate code format before sending
+      if (!this.isValidCode()) {
+          this.errorMessage = this.useEmailOtp 
+            ? 'Please enter a valid 6-digit code from your email.' 
+            : 'Please enter a valid 6-digit code from your authenticator app.';
+          return;
+      }
+
       this.loading = true;
       this.errorMessage = null;
       
+      // Pass useEmailOtp flag - defaults to false for existing flow
       const verify$ = this.password ? 
-        this.authService.verify2fa(this.username, this.twoFactorCode, this.password) :
-        this.authService.verify2faOAuth(this.username, this.twoFactorCode);
+        this.authService.verify2fa(this.username, this.twoFactorCode, this.password, this.useEmailOtp) :
+        this.authService.verify2faOAuth(this.username, this.twoFactorCode, this.useEmailOtp);
 
       verify$.subscribe({
           next: (response) => {
@@ -97,7 +161,7 @@ export class LoginComponent implements OnInit {
           error: (error) => {
               this.loading = false;
               if (error.status === 401 || error.status === 400) {
-                  this.errorMessage = error.error?.message || 'Invalid Code. Please try again.';
+                  this.errorMessage = error.error?.message || 'Invalid code. Please try again.';
               } else if (error.status === 0) {
                   this.errorMessage = 'Unable to connect to server. Please check your internet connection.';
               } else {
@@ -120,10 +184,18 @@ export class LoginComponent implements OnInit {
            this.loginStep = 'setup';
            this.setupData = response;
            this.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(response.qrUrl!)}`;
+           this.useEmailOtp = false;
+           this.emailOtpSent = false;
+           this.emailOtpMessage = '';
+           this.twoFactorCode = '';
         } else if (response.requires2fa) {
            this.username = response.username!; // Store username for step 3
            this.password = ''; // Clear password for oauth flow
            this.loginStep = 'verify';
+           this.useEmailOtp = false;
+           this.emailOtpSent = false;
+           this.emailOtpMessage = '';
+           this.twoFactorCode = '';
         }
       },
       error: (error) => {
